@@ -1,0 +1,263 @@
+---
+title: "Modeling Blood Donation Workflows"
+author: "Ryland Mortlock"
+date: "3/28/2020"
+output: html_document
+---
+
+```{r, setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Load required packages
+suppressPackageStartupMessages(require(ggplot2))
+suppressPackageStartupMessages(require(reshape2))
+
+# Source the helper functions
+source('helper_functions.R')
+
+```
+
+## Modeling Assumptions
+
+This set of simulations aims to compare different workflows for arrranging healthcare workers at a blood donation site to minimize risk of viral traqnsmission. We are using it to suggest workflow improvements for blood donation sites in the context of COVID-19. This model **DOES NOT** aim to accurately estimate the risk of healthcare workers or blood donors contracting COVID-19. It is just a tool used to compare workflow designs.
+
+We are going to work with a very simpified model of virus transmission where the risk of virus spread from any given interaction is a combination of 3 factors:
+
+1. The likelihood that a person involved in the interactions is COVID+
+2. The likelihood that the virus is transmitted during the interaction with no protective equipment in place
+3. The likelihood that the protective equipment fails to stop the transmission from occuring. 
+
+```{r, virus spreading parameters, include = TRUE, echo = TRUE, warning = FALSE}
+proportion_positive <- 0.1
+transmission_rate <- 0.2
+ppe_failure_rate <- 0.1
+interaction_risk <- proportion_positive * transmission_rate * ppe_failure_rate
+cat(interaction_risk,"or",interaction_risk*100,"%")
+```
+
+Therefore, all three factors can be combined into the single relevant parameter interaction_risk. We will run simulations across a range of the parameter interaction_risk so tat we can encompass the uncertainty in all three of the factors which define it. 
+
+## Modeling the Risk of Transmission to Healthcare Workers
+
+The basic model will be this: a donor enters and must complete a 1) health screening and 2) blood collection. Each of those actions involves an interaction with a healthcare worker.
+
+In each case, there is a set number of healthcare workers who can either act as screeners (S) who do the healthcare screening or phlebotomists (P) who draw the blood. The donor sees one screener and one phlebotomist.
+
+The simulation will start with all healthcare workers being COVID-negative and simulate their random interactions with donors for the specified number of days. The output will be how many of the healthcare workers have contracted COVID-19 after X amount of days under various conditions for interaction_risk.
+
+We will start with the following two necessary parameters:
+
+* Number of healthcare workers (n_hcw) = 6
+* Number of donors per day (n_donors) = 20
+* Number of days (n_days) = 30
+
+We are going to start with our simplest workflow design: the blood donation center has 10 healthcare workers, all of whom can be S or P. They interact with donors randomly. The simulation is carried out by the function simulate_hcw_risk. 
+
+```{r, set parameters, include = FALSE, echo = FALSE, warning = FALSE}
+n_hcw <- 6
+n_donors <- 20
+n_days <- 30
+```
+
+```{r, simplest case, include = TRUE, echo = TRUE, warning = FALSE}
+hcw_risk_vec <- simulate_hcw_risk(n_hcw = 6,
+                                  n_donors = 20,
+                                  n_days = 30,
+                                  interaction_risk = 0.002)
+```
+
+We can plot the proportion of healthcare workers contracting the virus over time.
+
+```{r, plot simplest case, include = TRUE, echo = FALSE, warning = FALSE}
+hcw_risk_df <- as.data.frame(hcw_risk_vec)
+
+ggplot(data = hcw_risk_df, aes(y = hcw_risk_vec, x = 1:length(hcw_risk_vec))) +
+  labs(x = "Days", y = "", title = "Proportion of Healthcare Workers Contracting Virus") + ylim(0,1) +
+  geom_step() + geom_point() + theme_minimal() + 
+  theme(plot.title = element_text(size = 18), axis.title.y = element_text(size = 16))
+
+```
+
+Since we are doing a random simulation for each interaction, we should simulate 100 times and take the average.
+
+```{r, mean simplest case, include = TRUE, echo = TRUE, warning = FALSE}
+n_sim <- 100
+hcw_risk_mat <- matrix(nrow = n_sim, ncol = 30)
+for (i in 1:n_sim){
+  hcw_risk_mat[i,] <- simulate_hcw_risk(n_hcw = 6,
+                                        n_donors = 20,
+                                        n_days = 30,
+                                        interaction_risk = 0.002)
+}
+
+hcw_risk_mean <- apply(hcw_risk_mat, MARGIN = 2, FUN = mean)
+```
+
+And we can plot the mean value over the 30 days.
+
+```{r, plot mean simplest case, include = TRUE, echo = FALSE, warning = FALSE}
+hcw_risk_mean_df <- data.frame(hcw_risk_mean)
+
+ggplot(data = hcw_risk_mean_df, aes(y = hcw_risk_mean, x = 1:length(hcw_risk_mean))) +
+  labs(x = "Days", y = "", title = "Proportion of Healthcare Workers Contracting Virus",
+       subtitle = paste("Average across",n_sim,"simulations")) + ylim(0,1) +
+  geom_line() + theme_minimal() + 
+  theme(plot.title = element_text(size = 18), axis.title.y = element_text(size = 16))
+
+```
+
+We are also interested in how the transmission is affected by the interaction risk, which is a lumped parameter which describes how likely a healthcare worker is to contract COVID from interacting with a blood donor. Below, we will vary the interaction risk, simulate for a given number of days 100 times, and take the average at the final timepoint as the final proportion of healthcare workers contracting the disease.
+
+```{r, vary interaction score, include = TRUE, echo = TRUE, warning = FALSE}
+# Set which values of interaction_risk to explore
+interaction_risk_vec <- seq(from = 0.0001, to = 0.02, by = 0.001)
+
+# Set the number of simulations
+n_sim <- 100
+
+# Initialize a vector 
+interaction_risk_results <- rep(0, times = length(interaction_risk_vec))
+
+# Simulate for each value of interaction_risk
+for (i in 1:length(interaction_risk_vec)){
+  
+  # Initialize matrix for results
+  hcw_risk_mat <- matrix(nrow = n_sim, ncol = 30)
+  
+  # Simulate the model across chosen number of simulations
+  for (j in 1:n_sim){
+    hcw_risk_mat[j,] <- simulate_hcw_risk(n_hcw = 6,
+                                          n_donors = 20,
+                                          n_days = 30,
+                                          interaction_risk = interaction_risk_vec[i])
+  }
+  
+  # Take the average across all simulations
+  hcw_risk_mean <- apply(hcw_risk_mat, MARGIN = 2, FUN = mean)
+  
+  # Store into result vector
+  interaction_risk_results[i] <- hcw_risk_mean[length(hcw_risk_mean)]
+}
+
+```
+
+And we can plot the result:
+
+```{r, plot vary interaction score, include = TRUE, echo = FALSE, warning = FALSE}
+interaction_risk_df <- data.frame(interaction_risk_results)
+
+ggplot(data = interaction_risk_df, aes(y = interaction_risk_results, x = interaction_risk_vec)) +
+  labs(x = "Interaction Risk", y = "", title = "Proportion of Healthcare Workers Infected by Final Day",
+       subtitle = paste("Averaged across",n_sim,"simulations")) + ylim(0,1) +
+  geom_line() + geom_point() + theme_minimal() + 
+  theme(plot.title = element_text(size = 18), axis.title.y = element_text(size = 16))
+```
+
+## Modeling the risk of transmission to donors
+
+Within the same basic model, we want to include the possibility that once infected, a healthcare worker can become an asymptomatic carrier and spread the disease to donors they interact with in the future. 
+
+This can be achieved by using the same simulation but incorporating a risk of interaction from healthcare worker to donor. The risk of this happening (donor_interaction_risk) can be calculated similarly to the interaction_risk above. There is no proportion_positive term since the chance of this spread only happens if the healthcare worker is positive for the virus. 
+
+```{r, virus spreading to donors parameters, include = TRUE, echo = TRUE, warning = FALSE}
+transmission_rate <- 0.2
+ppe_failure_rate <- 0.1
+donor_interaction_risk <- transmission_rate * ppe_failure_rate
+cat(donor_interaction_risk,"or",donor_interaction_risk*100,"%")
+```
+
+The simulation takes place within the function simulate_donor_risk:
+
+```{r, simulate donor risk}, include = TRUE, echo = TRUE, warning = FALSE}
+donor_new_cases <- simulate_donor_risk(n_hcw = 6,
+                                      n_donors = 20,
+                                      n_days = 30,
+                                      interaction_risk = 0.002,
+                                      proportion_positive = 0.1)
+donor_new_cases
+```
+
+We can plot the result of new cases over the timecourse:
+
+```{r, plot donor new cases, include = TRUE, echo = FALSE, warning = FALSE}
+donor_new_cases_df <- as.data.frame(donor_new_cases)
+
+ggplot(data = donor_new_cases_df, aes(y = donor_new_cases, x = 1:length(donor_new_cases))) +
+  labs(x = "Days", y = "", title = "Number of Donors Contracting Virus from Donation Site") + 
+  geom_step() + geom_point() + theme_minimal() +
+  theme(plot.title = element_text(size = 18), axis.title.y = element_text(size = 16))
+
+```
+
+Again, we can simulate 100 times and take the mean, then plot over 30 days. 
+
+```{r, mean donor cases, include = TRUE, echo = TRUE, warning = FALSE}
+n_sim <- 100
+donor_risk_mat <- matrix(nrow = n_sim, ncol = 30)
+for (i in 1:n_sim){
+  donor_risk_mat[i,] <- simulate_donor_risk(n_hcw = 6,
+                                            n_donors = 20,
+                                            n_days = 30,
+                                            interaction_risk = 0.002,
+                                            proportion_positive = 0.1)
+}
+
+donor_risk_mean <- apply(donor_risk_mat, MARGIN = 2, FUN = mean)
+
+donor_risk_mean_df <- data.frame(donor_risk_mean)
+
+ggplot(data = donor_risk_mean_df, aes(y = donor_risk_mean, x = 1:length(donor_risk_mean))) +
+  labs(x = "Days", y = "", title = "Number of Donors Contracting Virus from Donation Site",
+       subtitle = paste("Average across",n_sim,"simulations")) +
+  geom_line() + theme_minimal() + 
+  theme(plot.title = element_text(size = 18), axis.title.y = element_text(size = 16))
+
+```
+
+
+And we can also explore the impact of the interaction_risk parameter on the number of new cases acquired from the blood donation site at the end of the time period. 
+
+```{r, vary interaction score donors, include = TRUE, echo = FALSE, warning = FALSE}
+# Set which values of interaction_risk to explore
+interaction_risk_vec <- seq(from = 0.0001, to = 0.02, by = 0.001)
+
+# Set the number of simulations
+n_sim <- 100
+
+# Initialize a vector 
+interaction_risk_results_donor <- rep(0, times = length(interaction_risk_vec))
+
+# Simulate for each value of interaction_risk
+for (i in 1:length(interaction_risk_vec)){
+  
+  # Initialize matrix for results
+  donor_risk_mat <- matrix(nrow = n_sim, ncol = n_days)
+  
+  # Simulate the model across chosen number of simulations
+  for (j in 1:n_sim){
+    donor_risk_mat[j,] <- simulate_donor_risk(n_hcw = 6,
+                                              n_donors = 20,
+                                              n_days = 30,
+                                              interaction_risk = interaction_risk_vec[i],
+                                              proportion_positive = 0.1)
+  }
+  
+  # Take the average across all simulations
+  donor_risk_mean <- apply(donor_risk_mat, MARGIN = 2, FUN = mean)
+  
+  # Store into result vector
+  interaction_risk_results_donor[i] <- donor_risk_mean[length(donor_risk_mean)]
+}
+
+# Plot the result
+interaction_risk_df_donor <- data.frame(interaction_risk_results_donor)
+
+ggplot(data = interaction_risk_df_donor, aes(y = interaction_risk_results_donor, x = interaction_risk_vec)) +
+  labs(x = "Interaction Risk", y = "", title = "Number of New Cases Acquired from Donation Site at Final Day",
+       subtitle = paste("Averaged across",n_sim,"simulations")) +
+  geom_line() + geom_point() + theme_minimal() + 
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+```
+
+## Now to simulate and compare different workflow arrangements!
+
