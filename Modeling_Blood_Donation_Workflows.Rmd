@@ -19,7 +19,7 @@ source('helper_functions.R')
 
 ## Modeling Assumptions
 
-This set of simulations aims to compare different workflows for arrranging healthcare workers at a blood donation site to minimize risk of viral traqnsmission. We are using it to suggest workflow improvements for blood donation sites in the context of COVID-19. This model **DOES NOT** aim to accurately estimate the risk of healthcare workers or blood donors contracting COVID-19. It is just a tool used to compare workflow designs.
+This set of simulations aims to compare different workflows for arrranging healthcare workers at a blood donation site to minimize risk of viral transmission. We are using it to suggest workflow improvements for blood donation sites in the context of COVID-19. This model **DOES NOT** aim to accurately estimate the risk of healthcare workers or blood donors contracting COVID-19. It is just a tool used to compare workflow designs.
 
 We are going to work with a very simpified model of virus transmission where the risk of virus spread from any given interaction is a combination of 3 factors:
 
@@ -1150,6 +1150,42 @@ ggplot(data = interaction_risk_donor_combined_melted, aes(y = value, x = interac
   labs(x = "Interaction Risk", y = "", title ="Number of New Cases Acquired from Donation Site at Final Day",
        subtitle = paste("Averaged across",n_sim,"simulations")) + 
   geom_line(size = 1) + geom_point() + theme_minimal() +
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+
+```
+
+Same two plots but in terms of proportion.
+
+```{r, combine donor risk proportion, include = TRUE, echo = TRUE, warning = FALSE}
+donor_risk_mean_combined <- data.frame(case1 = donor_risk_mean_case1/(n_days*n_donors),
+                                       case2 = donor_risk_mean_case2/(n_days*n_donors),
+                                       case3 = donor_risk_mean_case3/(n_days*n_donors),
+                                       case4 = donor_risk_mean_case4/(n_days*n_donors),
+                                       case5 = donor_risk_mean_case5/(n_days*n_donors),
+                                       time = 1:n_days)
+
+donor_risk_mean_combined_melted <- melt(donor_risk_mean_combined, id = 'time') 
+
+ggplot(data = donor_risk_mean_combined_melted, aes(y = value, x = time, color = variable)) +
+  labs(x = "Days", y = "", title = "Proportion of Donors Contracting Virus from Donation Site",
+       subtitle = paste("Average across",n_sim,"simulations")) +
+  geom_line(size = 1) + theme_minimal() + ylim(0,1) + 
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+
+# Varying interaction risk
+interaction_risk_donor_combined <- data.frame(case1 = interaction_risk_results_donor_case1/(n_days*n_donors),
+                                              case2 = interaction_risk_results_donor_case2/(n_days*n_donors),
+                                              case3 = interaction_risk_results_donor_case3/(n_days*n_donors),
+                                              case4 = interaction_risk_results_donor_case4/(n_days*n_donors),
+                                              case5 = interaction_risk_results_donor_case5/(n_days*n_donors),
+                                              interaction = interaction_risk_vec)
+
+interaction_risk_donor_combined_melted <- melt(interaction_risk_donor_combined, id = 'interaction')
+
+ggplot(data = interaction_risk_donor_combined_melted, aes(y = value, x = interaction, color = variable)) +
+  labs(x = "Interaction Risk", y = "", title ="Total Proportion of Donors Contracting Virus from Donation Site",
+       subtitle = paste("Averaged across",n_sim,"simulations")) + 
+  geom_line(size = 1) + geom_point() + theme_minimal() + ylim(0,1) +
   theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
 
 ```
