@@ -170,11 +170,10 @@ The simulation takes place within the function simulate_donor_risk:
 
 ```{r, simulate donor risk}, include = TRUE, echo = TRUE, warning = FALSE}
 donor_new_cases <- simulate_donor_risk(n_hcw = 6,
-                                      n_donors = 20,
-                                      n_days = 30,
-                                      interaction_risk = 0.002,
-                                      proportion_positive = 0.1)
-donor_new_cases
+                                       n_donors = 20,
+                                       n_days = 30,
+                                       interaction_risk = 0.002,
+                                       proportion_positive = 0.1)
 ```
 
 We can plot the result of new cases over the timecourse:
@@ -259,5 +258,900 @@ ggplot(data = interaction_risk_df_donor, aes(y = interaction_risk_results_donor,
   theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
 ```
 
-## Now to simulate and compare different workflow arrangements!
+## Now to simulate and compare different workflow arrangements
+
+We will compare the following 5 ways of aranging health screeners (S) and phlebotomists (P).
+
+1. S and P are separate groups, assigned at random to each donor.
+2. S and P are separate groups, paired for each donor
+3. Healthcare workers can act as S or P, assigned at random.
+4. Healthcare workers can act as S or P, stay with same donor for both steps
+5. Same as case 4, but some fraction of the time, help is required from another worker.
+
+The simulations above represent case 3. Below we will repeat the same analysis steps for cases 1, 2, 4 and 5.
+
+# Case 1: Separate, Unpaired S and P
+
+The proportion of healthcare workers infected over 30 days.
+
+```{r, hcw risk case 1, include = TRUE, echo = FALSE, warning = FALSE}
+hcw_risk_vec_case1 <- simulate_hcw_risk_case1(n_s = 3,
+                                              n_p = 3,
+                                              n_donors = 20,
+                                              n_days = 30,
+                                              interaction_risk = 0.002)
+
+hcw_risk_df_case1 <- as.data.frame(hcw_risk_vec_case1)
+
+ggplot(data = hcw_risk_df_case1, aes(y = hcw_risk_vec_case1, x = 1:length(hcw_risk_vec_case1))) +
+  labs(x = "Days", y = "", title = "Case 1: Proportion of Healthcare Workers Contracting Virus") + ylim(0,1) +
+  geom_step() + geom_point() + theme_minimal() + 
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+
+# Mean
+n_sim <- 100
+hcw_risk_mat_case1 <- matrix(nrow = n_sim, ncol = 30)
+for (i in 1:n_sim){
+  hcw_risk_mat_case1[i,] <- simulate_hcw_risk_case1(n_s = 3,
+                                                    n_p = 3,
+                                                    n_donors = 20,
+                                                    n_days = 30,
+                                                    interaction_risk = 0.002)
+}
+
+hcw_risk_mean_case1 <- apply(hcw_risk_mat_case1, MARGIN = 2, FUN = mean)
+hcw_risk_mean_df_case1 <- data.frame(hcw_risk_mean_case1)
+
+ggplot(data = hcw_risk_mean_df_case1, aes(y = hcw_risk_mean_case1, x = 1:length(hcw_risk_mean_case1))) +
+  labs(x = "Days", y = "", title = "Case 1: Proportion of Healthcare Workers Contracting Virus",
+       subtitle = paste("Average across",n_sim,"simulations")) + ylim(0,1) +
+  geom_line() + theme_minimal() + 
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+
+# Varying interaction score
+# Set which values of interaction_risk to explore
+interaction_risk_vec <- seq(from = 0.0001, to = 0.02, by = 0.001)
+
+# Set the number of simulations
+n_sim <- 100
+
+# Initialize a vector 
+interaction_risk_results_case1 <- rep(0, times = length(interaction_risk_vec))
+
+# Simulate for each value of interaction_risk
+for (i in 1:length(interaction_risk_vec)){
+  
+  # Initialize matrix for results
+  hcw_risk_mat_case1 <- matrix(nrow = n_sim, ncol = 30)
+  
+  # Simulate the model across chosen number of simulations
+  for (j in 1:n_sim){
+    hcw_risk_mat_case1[j,] <- simulate_hcw_risk_case1(n_s = 3,
+                                                      n_p = 3,
+                                                      n_donors = 20,
+                                                      n_days = 30,
+                                                      interaction_risk = interaction_risk_vec[i])
+  }
+  
+  # Take the average across all simulations
+  interm_hcw_risk_mean_case1 <- apply(hcw_risk_mat_case1, MARGIN = 2, FUN = mean)
+  
+  # Store into result vector
+  interaction_risk_results_case1[i] <- interm_hcw_risk_mean_case1[length(interm_hcw_risk_mean_case1)]
+}
+
+interaction_risk_df_case1 <- data.frame(interaction_risk_results_case1)
+
+ggplot(data = interaction_risk_df_case1, aes(y = interaction_risk_results_case1, x = interaction_risk_vec)) +
+  labs(x = "Interaction Risk", y = "", title ="Case 1: Proportion of Healthcare Workers Infected by Final Day",
+       subtitle = paste("Averaged across",n_sim,"simulations")) + ylim(0,1) +
+  geom_line() + geom_point() + theme_minimal() + 
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+```
+
+The number of new donor cases acquired at the donation center.
+
+```{r, donor case 1, include = TRUE, echo = FALSE, warning = FALSE}
+donor_new_cases_case1 <- simulate_donor_risk_case1(n_s = 3,
+                                                   n_p = 3,
+                                                   n_donors = 20,
+                                                   n_days = 30,
+                                                   interaction_risk = 0.002,
+                                                   proportion_positive = 0.1)
+
+donor_new_cases_df_case1 <- as.data.frame(donor_new_cases_case1)
+
+ggplot(data = donor_new_cases_df_case1, aes(y = donor_new_cases_case1, x = 1:length(donor_new_cases_case1))) +
+  labs(x = "Days", y = "", title = "Case 1: Number of Donors Contracting Virus from Donation Site") + 
+  geom_step() + geom_point() + theme_minimal() +
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+
+#Mean
+n_sim <- 100
+donor_risk_mat_case1 <- matrix(nrow = n_sim, ncol = 30)
+for (i in 1:n_sim){
+  donor_risk_mat_case1[i,] <- simulate_donor_risk_case1(n_s = 3,
+                                                        n_p = 3,
+                                                        n_donors = 20,
+                                                        n_days = 30,
+                                                        interaction_risk = 0.002,
+                                                        proportion_positive = 0.1)
+}
+
+donor_risk_mean_case1 <- apply(donor_risk_mat_case1, MARGIN = 2, FUN = mean)
+
+donor_risk_mean_df_case1 <- data.frame(donor_risk_mean_case1)
+
+ggplot(data = donor_risk_mean_df_case1, aes(y = donor_risk_mean_case1, x = 1:length(donor_risk_mean_case1))) +
+  labs(x = "Days", y = "", title = "Case 1: Number of Donors Contracting Virus from Donation Site",
+       subtitle = paste("Average across",n_sim,"simulations")) +
+  geom_line() + theme_minimal() + 
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+
+# Vary interaction scores
+# Set which values of interaction_risk to explore
+interaction_risk_vec <- seq(from = 0.0001, to = 0.02, by = 0.001)
+
+# Set the number of simulations
+n_sim <- 100
+
+# Initialize a vector 
+interaction_risk_results_donor_case1 <- rep(0, times = length(interaction_risk_vec))
+
+# Simulate for each value of interaction_risk
+for (i in 1:length(interaction_risk_vec)){
+  
+  # Initialize matrix for results
+  donor_risk_mat_case1 <- matrix(nrow = n_sim, ncol = n_days)
+  
+  # Simulate the model across chosen number of simulations
+  for (j in 1:n_sim){
+    donor_risk_mat_case1[j,] <- simulate_donor_risk_case1(n_s = 3,
+                                                          n_p = 3,
+                                                          n_donors = 20,
+                                                          n_days = 30,
+                                                          interaction_risk = interaction_risk_vec[i],
+                                                          proportion_positive = 0.1)
+  }
+  
+  # Take the average across all simulations
+  interm_donor_risk_mean_case1 <- apply(donor_risk_mat_case1, MARGIN = 2, FUN = mean)
+  
+  # Store into result vector
+  interaction_risk_results_donor_case1[i] <- interm_donor_risk_mean_case1[length(interm_donor_risk_mean_case1)]
+}
+
+# Plot the result
+interaction_risk_df_donor_case1 <- data.frame(interaction_risk_results_donor_case1)
+
+ggplot(data = interaction_risk_df_donor_case1, aes(y = interaction_risk_results_donor_case1,
+                                                   x = interaction_risk_vec)) +
+  labs(x = "Interaction Risk", y = "",
+       title = "Case 1: Number of New Cases Acquired from Donation Site at Final Day",
+       subtitle = paste("Averaged across",n_sim,"simulations")) +
+  geom_line() + geom_point() + theme_minimal() + 
+  theme(plot.title = element_text(size = 14), axis.title.y = element_text(size = 14))
+```
+
+# Case 2: Separate, Paired S and P
+
+The proportion of healthcare workers infected over 30 days.
+
+```{r, hcw risk case 2, include = TRUE, echo = FALSE, warning = FALSE}
+hcw_risk_vec_case2 <- simulate_hcw_risk_case2(n_s = 3,
+                                              n_p = 3,
+                                              n_donors = 20,
+                                              n_days = 30,
+                                              interaction_risk = 0.002)
+
+hcw_risk_df_case2 <- as.data.frame(hcw_risk_vec_case2)
+
+ggplot(data = hcw_risk_df_case2, aes(y = hcw_risk_vec_case2, x = 1:length(hcw_risk_vec_case2))) +
+  labs(x = "Days", y = "", title = "Case 2: Proportion of Healthcare Workers Contracting Virus") + ylim(0,1) +
+  geom_step() + geom_point() + theme_minimal() + 
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+
+# Mean
+n_sim <- 100
+hcw_risk_mat_case2 <- matrix(nrow = n_sim, ncol = 30)
+for (i in 1:n_sim){
+  hcw_risk_mat_case2[i,] <- simulate_hcw_risk_case2(n_s = 3,
+                                                    n_p = 3,
+                                                    n_donors = 20,
+                                                    n_days = 30,
+                                                    interaction_risk = 0.002)
+}
+
+hcw_risk_mean_case2 <- apply(hcw_risk_mat_case2, MARGIN = 2, FUN = mean)
+hcw_risk_mean_df_case2 <- data.frame(hcw_risk_mean_case2)
+
+ggplot(data = hcw_risk_mean_df_case2, aes(y = hcw_risk_mean_case2, x = 1:length(hcw_risk_mean_case2))) +
+  labs(x = "Days", y = "", title = "Case 2: Proportion of Healthcare Workers Contracting Virus",
+       subtitle = paste("Average across",n_sim,"simulations")) + ylim(0,1) +
+  geom_line() + theme_minimal() + 
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+
+# Varying interaction score
+# Set which values of interaction_risk to explore
+interaction_risk_vec <- seq(from = 0.0001, to = 0.02, by = 0.001)
+
+# Set the number of simulations
+n_sim <- 100
+
+# Initialize a vector 
+interaction_risk_results_case2 <- rep(0, times = length(interaction_risk_vec))
+
+# Simulate for each value of interaction_risk
+for (i in 1:length(interaction_risk_vec)){
+  
+  # Initialize matrix for results
+  hcw_risk_mat_case2 <- matrix(nrow = n_sim, ncol = 30)
+  
+  # Simulate the model across chosen number of simulations
+  for (j in 1:n_sim){
+    hcw_risk_mat_case2[j,] <- simulate_hcw_risk_case2(n_s = 3,
+                                                      n_p = 3,
+                                                      n_donors = 20,
+                                                      n_days = 30,
+                                                      interaction_risk = interaction_risk_vec[i])
+  }
+  
+  # Take the average across all simulations
+  interm_hcw_risk_mean_case2 <- apply(hcw_risk_mat_case2, MARGIN = 2, FUN = mean)
+  
+  # Store into result vector
+  interaction_risk_results_case2[i] <- interm_hcw_risk_mean_case2[length(interm_hcw_risk_mean_case2)]
+}
+
+interaction_risk_df_case2 <- data.frame(interaction_risk_results_case2)
+
+ggplot(data = interaction_risk_df_case2, aes(y = interaction_risk_results_case2, x = interaction_risk_vec)) +
+  labs(x = "Interaction Risk", y = "", title ="Case 2: Proportion of Healthcare Workers Infected by Final Day",
+       subtitle = paste("Averaged across",n_sim,"simulations")) + ylim(0,1) +
+  geom_line() + geom_point() + theme_minimal() + 
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+```
+
+The number of new donor cases acquired at the donation center.
+
+```{r, donor case 2, include = TRUE, echo = FALSE, warning = FALSE}
+donor_new_cases_case2 <- simulate_donor_risk_case2(n_s = 3,
+                                                   n_p = 3,
+                                                   n_donors = 20,
+                                                   n_days = 30,
+                                                   interaction_risk = 0.002,
+                                                   proportion_positive = 0.1)
+
+donor_new_cases_df_case2 <- as.data.frame(donor_new_cases_case2)
+
+ggplot(data = donor_new_cases_df_case2, aes(y = donor_new_cases_case2, x = 1:length(donor_new_cases_case2))) +
+  labs(x = "Days", y = "", title = "Case 2: Number of Donors Contracting Virus from Donation Site") + 
+  geom_step() + geom_point() + theme_minimal() +
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+
+#Mean
+n_sim <- 100
+donor_risk_mat_case2 <- matrix(nrow = n_sim, ncol = 30)
+for (i in 1:n_sim){
+  donor_risk_mat_case2[i,] <- simulate_donor_risk_case2(n_s = 3,
+                                                        n_p = 3,
+                                                        n_donors = 20,
+                                                        n_days = 30,
+                                                        interaction_risk = 0.002,
+                                                        proportion_positive = 0.1)
+}
+
+donor_risk_mean_case2 <- apply(donor_risk_mat_case2, MARGIN = 2, FUN = mean)
+
+donor_risk_mean_df_case2 <- data.frame(donor_risk_mean_case2)
+
+ggplot(data = donor_risk_mean_df_case2, aes(y = donor_risk_mean_case2, x = 1:length(donor_risk_mean_case2))) +
+  labs(x = "Days", y = "", title = "Case 2: Number of Donors Contracting Virus from Donation Site",
+       subtitle = paste("Average across",n_sim,"simulations")) +
+  geom_line() + theme_minimal() + 
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+
+# Vary interaction scores
+# Set which values of interaction_risk to explore
+interaction_risk_vec <- seq(from = 0.0001, to = 0.02, by = 0.001)
+
+# Set the number of simulations
+n_sim <- 100
+
+# Initialize a vector 
+interaction_risk_results_donor_case2 <- rep(0, times = length(interaction_risk_vec))
+
+# Simulate for each value of interaction_risk
+for (i in 1:length(interaction_risk_vec)){
+  
+  # Initialize matrix for results
+  donor_risk_mat_case2 <- matrix(nrow = n_sim, ncol = n_days)
+  
+  # Simulate the model across chosen number of simulations
+  for (j in 1:n_sim){
+    donor_risk_mat_case2[j,] <- simulate_donor_risk_case2(n_s = 3,
+                                                          n_p = 3,
+                                                          n_donors = 20,
+                                                          n_days = 30,
+                                                          interaction_risk = interaction_risk_vec[i],
+                                                          proportion_positive = 0.1)
+  }
+  
+  # Take the average across all simulations
+  interm_donor_risk_mean_case2 <- apply(donor_risk_mat_case2, MARGIN = 2, FUN = mean)
+  
+  # Store into result vector
+  interaction_risk_results_donor_case2[i] <- interm_donor_risk_mean_case2[length(interm_donor_risk_mean_case2)]
+}
+
+# Plot the result
+interaction_risk_df_donor_case2 <- data.frame(interaction_risk_results_donor_case2)
+
+ggplot(data = interaction_risk_df_donor_case2, aes(y = interaction_risk_results_donor_case2,
+                                                   x = interaction_risk_vec)) +
+  labs(x = "Interaction Risk", y = "",
+       title = "Case 2: Number of New Cases Acquired from Donation Site at Final Day",
+       subtitle = paste("Averaged across",n_sim,"simulations")) +
+  geom_line() + geom_point() + theme_minimal() + 
+  theme(plot.title = element_text(size = 14), axis.title.y = element_text(size = 14))
+```
+
+
+# Case 3: Dual Function S and P, Mixed Donors
+
+The proportion of healthcare workers infected over 30 days.
+
+```{r, hcw risk case 3, include = TRUE, echo = FALSE, warning = FALSE}
+hcw_risk_vec_case3 <- simulate_hcw_risk_case3(n_hcw = 6,
+                                              n_donors = 20,
+                                              n_days = 30,
+                                              interaction_risk = 0.002)
+
+hcw_risk_df_case3 <- as.data.frame(hcw_risk_vec_case3)
+
+ggplot(data = hcw_risk_df_case3, aes(y = hcw_risk_vec_case3, x = 1:length(hcw_risk_vec_case3))) +
+  labs(x = "Days", y = "", title = "Case 3: Proportion of Healthcare Workers Contracting Virus") + ylim(0,1) +
+  geom_step() + geom_point() + theme_minimal() + 
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+
+# Mean
+n_sim <- 100
+hcw_risk_mat_case3 <- matrix(nrow = n_sim, ncol = 30)
+for (i in 1:n_sim){
+  hcw_risk_mat_case3[i,] <- simulate_hcw_risk_case3(n_hcw = 6,
+                                                    n_donors = 20,
+                                                    n_days = 30,
+                                                    interaction_risk = 0.002)
+}
+
+hcw_risk_mean_case3 <- apply(hcw_risk_mat_case3, MARGIN = 2, FUN = mean)
+hcw_risk_mean_df_case3 <- data.frame(hcw_risk_mean_case3)
+
+ggplot(data = hcw_risk_mean_df_case3, aes(y = hcw_risk_mean_case3, x = 1:length(hcw_risk_mean_case3))) +
+  labs(x = "Days", y = "", title = "Case 3: Proportion of Healthcare Workers Contracting Virus",
+       subtitle = paste("Average across",n_sim,"simulations")) + ylim(0,1) +
+  geom_line() + theme_minimal() + 
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+
+# Varying interaction score
+# Set which values of interaction_risk to explore
+interaction_risk_vec <- seq(from = 0.0001, to = 0.02, by = 0.001)
+
+# Set the number of simulations
+n_sim <- 100
+
+# Initialize a vector 
+interaction_risk_results_case3 <- rep(0, times = length(interaction_risk_vec))
+
+# Simulate for each value of interaction_risk
+for (i in 1:length(interaction_risk_vec)){
+  
+  # Initialize matrix for results
+  hcw_risk_mat_case3 <- matrix(nrow = n_sim, ncol = 30)
+  
+  # Simulate the model across chosen number of simulations
+  for (j in 1:n_sim){
+    hcw_risk_mat_case3[j,] <- simulate_hcw_risk_case3(n_hcw = 6,
+                                                      n_donors = 20,
+                                                      n_days = 30,
+                                                      interaction_risk = interaction_risk_vec[i])
+  }
+  
+  # Take the average across all simulations
+  interm_hcw_risk_mean_case3 <- apply(hcw_risk_mat_case3, MARGIN = 2, FUN = mean)
+  
+  # Store into result vector
+  interaction_risk_results_case3[i] <- interm_hcw_risk_mean_case3[length(interm_hcw_risk_mean_case3)]
+}
+
+interaction_risk_df_case3 <- data.frame(interaction_risk_results_case3)
+
+ggplot(data = interaction_risk_df_case3, aes(y = interaction_risk_results_case3, x = interaction_risk_vec)) +
+  labs(x = "Interaction Risk", y = "", title ="Case 3: Proportion of Healthcare Workers Infected by Final Day",
+       subtitle = paste("Averaged across",n_sim,"simulations")) + ylim(0,1) +
+  geom_line() + geom_point() + theme_minimal() + 
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+```
+
+The number of new donor cases acquired at the donation center.
+
+```{r, donor case 3, include = TRUE, echo = FALSE, warning = FALSE}
+donor_new_cases_case3 <- simulate_donor_risk_case3(n_hcw = 6,
+                                                   n_donors = 20,
+                                                   n_days = 30,
+                                                   interaction_risk = 0.002,
+                                                   proportion_positive = 0.1)
+
+donor_new_cases_df_case3 <- as.data.frame(donor_new_cases_case3)
+
+ggplot(data = donor_new_cases_df_case3, aes(y = donor_new_cases_case3, x = 1:length(donor_new_cases_case3))) +
+  labs(x = "Days", y = "", title = "Case 3: Number of Donors Contracting Virus from Donation Site") + 
+  geom_step() + geom_point() + theme_minimal() +
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+
+#Mean
+n_sim <- 100
+donor_risk_mat_case3 <- matrix(nrow = n_sim, ncol = 30)
+for (i in 1:n_sim){
+  donor_risk_mat_case3[i,] <- simulate_donor_risk_case3(n_hcw = 6,
+                                                        n_donors = 20,
+                                                        n_days = 30,
+                                                        interaction_risk = 0.002,
+                                                        proportion_positive = 0.1)
+}
+
+donor_risk_mean_case3 <- apply(donor_risk_mat_case3, MARGIN = 2, FUN = mean)
+
+donor_risk_mean_df_case3 <- data.frame(donor_risk_mean_case3)
+
+ggplot(data = donor_risk_mean_df_case3, aes(y = donor_risk_mean_case3, x = 1:length(donor_risk_mean_case3))) +
+  labs(x = "Days", y = "", title = "Case 3: Number of Donors Contracting Virus from Donation Site",
+       subtitle = paste("Average across",n_sim,"simulations")) +
+  geom_line() + theme_minimal() + 
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+
+# Vary interaction scores
+# Set which values of interaction_risk to explore
+interaction_risk_vec <- seq(from = 0.0001, to = 0.02, by = 0.001)
+
+# Set the number of simulations
+n_sim <- 100
+
+# Initialize a vector 
+interaction_risk_results_donor_case3 <- rep(0, times = length(interaction_risk_vec))
+
+# Simulate for each value of interaction_risk
+for (i in 1:length(interaction_risk_vec)){
+  
+  # Initialize matrix for results
+  donor_risk_mat_case3 <- matrix(nrow = n_sim, ncol = n_days)
+  
+  # Simulate the model across chosen number of simulations
+  for (j in 1:n_sim){
+    donor_risk_mat_case3[j,] <- simulate_donor_risk_case3(n_hcw = 6,
+                                                          n_donors = 20,
+                                                          n_days = 30,
+                                                          interaction_risk = interaction_risk_vec[i],
+                                                          proportion_positive = 0.1)
+  }
+  
+  # Take the average across all simulations
+  interm_donor_risk_mean_case3 <- apply(donor_risk_mat_case3, MARGIN = 2, FUN = mean)
+  
+  # Store into result vector
+  interaction_risk_results_donor_case3[i] <- interm_donor_risk_mean_case3[length(interm_donor_risk_mean_case3)]
+}
+
+# Plot the result
+interaction_risk_df_donor_case3 <- data.frame(interaction_risk_results_donor_case3)
+
+ggplot(data = interaction_risk_df_donor_case3, aes(y = interaction_risk_results_donor_case3,
+                                                   x = interaction_risk_vec)) +
+  labs(x = "Interaction Risk", y = "",
+       title = "Case 3: Number of New Cases Acquired from Donation Site at Final Day",
+       subtitle = paste("Averaged across",n_sim,"simulations")) +
+  geom_line() + geom_point() + theme_minimal() + 
+  theme(plot.title = element_text(size = 14), axis.title.y = element_text(size = 14))
+```
+
+# Case 4: Dual Function S and P, Fixed Donor
+
+The proportion of healthcare workers infected over 30 days.
+
+```{r, hcw risk case 4, include = TRUE, echo = FALSE, warning = FALSE}
+hcw_risk_vec_case4 <- simulate_hcw_risk_case4(n_hcw = 6,
+                                              n_donors = 20,
+                                              n_days = 30,
+                                              interaction_risk = 0.002)
+
+hcw_risk_df_case4 <- as.data.frame(hcw_risk_vec_case4)
+
+ggplot(data = hcw_risk_df_case4, aes(y = hcw_risk_vec_case4, x = 1:length(hcw_risk_vec_case4))) +
+  labs(x = "Days", y = "", title = "Case 4: Proportion of Healthcare Workers Contracting Virus") + ylim(0,1) +
+  geom_step() + geom_point() + theme_minimal() + 
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+
+# Mean
+n_sim <- 100
+hcw_risk_mat_case4 <- matrix(nrow = n_sim, ncol = 30)
+for (i in 1:n_sim){
+  hcw_risk_mat_case4[i,] <- simulate_hcw_risk_case4(n_hcw = 6,
+                                                    n_donors = 20,
+                                                    n_days = 30,
+                                                    interaction_risk = 0.002)
+}
+
+hcw_risk_mean_case4 <- apply(hcw_risk_mat_case4, MARGIN = 2, FUN = mean)
+hcw_risk_mean_df_case4 <- data.frame(hcw_risk_mean_case4)
+
+ggplot(data = hcw_risk_mean_df_case4, aes(y = hcw_risk_mean_case4, x = 1:length(hcw_risk_mean_case4))) +
+  labs(x = "Days", y = "", title = "Case 4: Proportion of Healthcare Workers Contracting Virus",
+       subtitle = paste("Average across",n_sim,"simulations")) + ylim(0,1) +
+  geom_line() + theme_minimal() + 
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+
+# Varying interaction score
+# Set which values of interaction_risk to explore
+interaction_risk_vec <- seq(from = 0.0001, to = 0.02, by = 0.001)
+
+# Set the number of simulations
+n_sim <- 100
+
+# Initialize a vector 
+interaction_risk_results_case4 <- rep(0, times = length(interaction_risk_vec))
+
+# Simulate for each value of interaction_risk
+for (i in 1:length(interaction_risk_vec)){
+  
+  # Initialize matrix for results
+  hcw_risk_mat_case4 <- matrix(nrow = n_sim, ncol = 30)
+  
+  # Simulate the model across chosen number of simulations
+  for (j in 1:n_sim){
+    hcw_risk_mat_case4[j,] <- simulate_hcw_risk_case4(n_hcw = 6,
+                                                      n_donors = 20,
+                                                      n_days = 30,
+                                                      interaction_risk = interaction_risk_vec[i])
+  }
+  
+  # Take the average across all simulations
+  interm_hcw_risk_mean_case4 <- apply(hcw_risk_mat_case4, MARGIN = 2, FUN = mean)
+  
+  # Store into result vector
+  interaction_risk_results_case4[i] <- interm_hcw_risk_mean_case4[length(interm_hcw_risk_mean_case4)]
+}
+
+interaction_risk_df_case4 <- data.frame(interaction_risk_results_case4)
+
+ggplot(data = interaction_risk_df_case4, aes(y = interaction_risk_results_case4, x = interaction_risk_vec)) +
+  labs(x = "Interaction Risk", y = "", title ="Case 4: Proportion of Healthcare Workers Infected by Final Day",
+       subtitle = paste("Averaged across",n_sim,"simulations")) + ylim(0,1) +
+  geom_line() + geom_point() + theme_minimal() + 
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+```
+
+The number of new donor cases acquired at the donation center.
+
+```{r, donor case 4, include = TRUE, echo = FALSE, warning = FALSE}
+donor_new_cases_case4 <- simulate_donor_risk_case4(n_hcw = 6,
+                                                   n_donors = 20,
+                                                   n_days = 30,
+                                                   interaction_risk = 0.002,
+                                                   proportion_positive = 0.1)
+
+donor_new_cases_df_case4 <- as.data.frame(donor_new_cases_case4)
+
+ggplot(data = donor_new_cases_df_case4, aes(y = donor_new_cases_case4, x = 1:length(donor_new_cases_case4))) +
+  labs(x = "Days", y = "", title = "Case 4: Number of Donors Contracting Virus from Donation Site") + 
+  geom_step() + geom_point() + theme_minimal() +
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+
+#Mean
+n_sim <- 100
+donor_risk_mat_case4 <- matrix(nrow = n_sim, ncol = 30)
+for (i in 1:n_sim){
+  donor_risk_mat_case4[i,] <- simulate_donor_risk_case4(n_hcw = 6,
+                                                        n_donors = 20,
+                                                        n_days = 30,
+                                                        interaction_risk = 0.002,
+                                                        proportion_positive = 0.1)
+}
+
+donor_risk_mean_case4 <- apply(donor_risk_mat_case4, MARGIN = 2, FUN = mean)
+
+donor_risk_mean_df_case4 <- data.frame(donor_risk_mean_case4)
+
+ggplot(data = donor_risk_mean_df_case4, aes(y = donor_risk_mean_case4, x = 1:length(donor_risk_mean_case4))) +
+  labs(x = "Days", y = "", title = "Case 4: Number of Donors Contracting Virus from Donation Site",
+       subtitle = paste("Average across",n_sim,"simulations")) +
+  geom_line() + theme_minimal() + 
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+
+# Vary interaction scores
+# Set which values of interaction_risk to explore
+interaction_risk_vec <- seq(from = 0.0001, to = 0.02, by = 0.001)
+
+# Set the number of simulations
+n_sim <- 100
+
+# Initialize a vector 
+interaction_risk_results_donor_case4 <- rep(0, times = length(interaction_risk_vec))
+
+# Simulate for each value of interaction_risk
+for (i in 1:length(interaction_risk_vec)){
+  
+  # Initialize matrix for results
+  donor_risk_mat_case4 <- matrix(nrow = n_sim, ncol = n_days)
+  
+  # Simulate the model across chosen number of simulations
+  for (j in 1:n_sim){
+    donor_risk_mat_case4[j,] <- simulate_donor_risk_case4(n_hcw = 6,
+                                                          n_donors = 20,
+                                                          n_days = 30,
+                                                          interaction_risk = interaction_risk_vec[i],
+                                                          proportion_positive = 0.1)
+  }
+  
+  # Take the average across all simulations
+  interm_donor_risk_mean_case4 <- apply(donor_risk_mat_case4, MARGIN = 2, FUN = mean)
+  
+  # Store into result vector
+  interaction_risk_results_donor_case4[i] <- interm_donor_risk_mean_case4[length(interm_donor_risk_mean_case4)]
+}
+
+# Plot the result
+interaction_risk_df_donor_case4 <- data.frame(interaction_risk_results_donor_case4)
+
+ggplot(data = interaction_risk_df_donor_case4, aes(y = interaction_risk_results_donor_case4,
+                                                   x = interaction_risk_vec)) +
+  labs(x = "Interaction Risk", y = "",
+       title = "Case 4: Number of New Cases Acquired from Donation Site at Final Day",
+       subtitle = paste("Averaged across",n_sim,"simulations")) +
+  geom_line() + geom_point() + theme_minimal() + 
+  theme(plot.title = element_text(size = 14), axis.title.y = element_text(size = 14))
+```
+
+# Case 5: Dual Function S and P, Fixed Donor, with Assist Rate
+
+The proportion of healthcare workers infected over 30 days.
+
+```{r, hcw risk case 5, include = TRUE, echo = FALSE, warning = FALSE}
+hcw_risk_vec_case5 <- simulate_hcw_risk_case5(n_hcw = 6,
+                                              n_donors = 20,
+                                              n_days = 30,
+                                              interaction_risk = 0.002,
+                                              assist_rate = 0.2)
+
+hcw_risk_df_case5 <- as.data.frame(hcw_risk_vec_case5)
+
+ggplot(data = hcw_risk_df_case5, aes(y = hcw_risk_vec_case5, x = 1:length(hcw_risk_vec_case5))) +
+  labs(x = "Days", y = "", title = "Case 5: Proportion of Healthcare Workers Contracting Virus") + ylim(0,1) +
+  geom_step() + geom_point() + theme_minimal() + 
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+
+# Mean
+n_sim <- 100
+hcw_risk_mat_case5 <- matrix(nrow = n_sim, ncol = 30)
+for (i in 1:n_sim){
+  hcw_risk_mat_case5[i,] <- simulate_hcw_risk_case5(n_hcw = 6,
+                                                    n_donors = 20,
+                                                    n_days = 30,
+                                                    interaction_risk = 0.002,
+                                                    assist_rate = 0.2)
+}
+
+hcw_risk_mean_case5 <- apply(hcw_risk_mat_case5, MARGIN = 2, FUN = mean)
+hcw_risk_mean_df_case5 <- data.frame(hcw_risk_mean_case5)
+
+ggplot(data = hcw_risk_mean_df_case5, aes(y = hcw_risk_mean_case5, x = 1:length(hcw_risk_mean_case5))) +
+  labs(x = "Days", y = "", title = "Case 5: Proportion of Healthcare Workers Contracting Virus",
+       subtitle = paste("Average across",n_sim,"simulations")) + ylim(0,1) +
+  geom_line() + theme_minimal() + 
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+
+# Varying interaction score
+# Set which values of interaction_risk to explore
+interaction_risk_vec <- seq(from = 0.0001, to = 0.02, by = 0.001)
+
+# Set the number of simulations
+n_sim <- 100
+
+# Initialize a vector 
+interaction_risk_results_case5 <- rep(0, times = length(interaction_risk_vec))
+
+# Simulate for each value of interaction_risk
+for (i in 1:length(interaction_risk_vec)){
+  
+  # Initialize matrix for results
+  hcw_risk_mat_case5 <- matrix(nrow = n_sim, ncol = 30)
+  
+  # Simulate the model across chosen number of simulations
+  for (j in 1:n_sim){
+    hcw_risk_mat_case5[j,] <- simulate_hcw_risk_case5(n_hcw = 6,
+                                                      n_donors = 20,
+                                                      n_days = 30,
+                                                      interaction_risk = interaction_risk_vec[i],
+                                                      assist_rate = 0.2)
+  }
+  
+  # Take the average across all simulations
+  interm_hcw_risk_mean_case5 <- apply(hcw_risk_mat_case5, MARGIN = 2, FUN = mean)
+  
+  # Store into result vector
+  interaction_risk_results_case5[i] <- interm_hcw_risk_mean_case5[length(interm_hcw_risk_mean_case5)]
+}
+
+interaction_risk_df_case5 <- data.frame(interaction_risk_results_case5)
+
+ggplot(data = interaction_risk_df_case5, aes(y = interaction_risk_results_case5, x = interaction_risk_vec)) +
+  labs(x = "Interaction Risk", y = "", title ="Case 5: Proportion of Healthcare Workers Infected by Final Day",
+       subtitle = paste("Averaged across",n_sim,"simulations")) + ylim(0,1) +
+  geom_line() + geom_point() + theme_minimal() + 
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+```
+
+The number of new donor cases acquired at the donation center.
+
+```{r, donor case 5, include = TRUE, echo = FALSE, warning = FALSE}
+donor_new_cases_case5 <- simulate_donor_risk_case5(n_hcw = 6,
+                                                   n_donors = 20,
+                                                   n_days = 30,
+                                                   interaction_risk = 0.002,
+                                                   proportion_positive = 0.1,
+                                                   assist_rate = 0.2)
+
+donor_new_cases_df_case5 <- as.data.frame(donor_new_cases_case5)
+
+ggplot(data = donor_new_cases_df_case5, aes(y = donor_new_cases_case5, x = 1:length(donor_new_cases_case5))) +
+  labs(x = "Days", y = "", title = "Case 5: Number of Donors Contracting Virus from Donation Site") + 
+  geom_step() + geom_point() + theme_minimal() +
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+
+#Mean
+n_sim <- 100
+donor_risk_mat_case5 <- matrix(nrow = n_sim, ncol = 30)
+for (i in 1:n_sim){
+  donor_risk_mat_case5[i,] <- simulate_donor_risk_case5(n_hcw = 6,
+                                                        n_donors = 20,
+                                                        n_days = 30,
+                                                        interaction_risk = 0.002,
+                                                        proportion_positive = 0.1,
+                                                        assist_rate = 0.2)
+}
+
+donor_risk_mean_case5 <- apply(donor_risk_mat_case5, MARGIN = 2, FUN = mean)
+
+donor_risk_mean_df_case5 <- data.frame(donor_risk_mean_case5)
+
+ggplot(data = donor_risk_mean_df_case5, aes(y = donor_risk_mean_case5, x = 1:length(donor_risk_mean_case5))) +
+  labs(x = "Days", y = "", title = "Case 5: Number of Donors Contracting Virus from Donation Site",
+       subtitle = paste("Average across",n_sim,"simulations")) +
+  geom_line() + theme_minimal() + 
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+
+# Vary interaction scores
+# Set which values of interaction_risk to explore
+interaction_risk_vec <- seq(from = 0.0001, to = 0.02, by = 0.001)
+
+# Set the number of simulations
+n_sim <- 100
+
+# Initialize a vector 
+interaction_risk_results_donor_case5 <- rep(0, times = length(interaction_risk_vec))
+
+# Simulate for each value of interaction_risk
+for (i in 1:length(interaction_risk_vec)){
+  
+  # Initialize matrix for results
+  donor_risk_mat_case5 <- matrix(nrow = n_sim, ncol = n_days)
+  
+  # Simulate the model across chosen number of simulations
+  for (j in 1:n_sim){
+    donor_risk_mat_case5[j,] <- simulate_donor_risk_case5(n_hcw = 6,
+                                                          n_donors = 20,
+                                                          n_days = 30,
+                                                          interaction_risk = interaction_risk_vec[i],
+                                                          proportion_positive = 0.1,
+                                                          assist_rate = 0.2)
+  }
+  
+  # Take the average across all simulations
+  interm_donor_risk_mean_case5 <- apply(donor_risk_mat_case5, MARGIN = 2, FUN = mean)
+  
+  # Store into result vector
+  interaction_risk_results_donor_case5[i] <- interm_donor_risk_mean_case5[length(interm_donor_risk_mean_case5)]
+}
+
+# Plot the result
+interaction_risk_df_donor_case5 <- data.frame(interaction_risk_results_donor_case5)
+
+ggplot(data = interaction_risk_df_donor_case5, aes(y = interaction_risk_results_donor_case5,
+                                                   x = interaction_risk_vec)) +
+  labs(x = "Interaction Risk", y = "",
+       title = "Case 5: Number of New Cases Acquired from Donation Site at Final Day",
+       subtitle = paste("Averaged across",n_sim,"simulations")) +
+  geom_line() + geom_point() + theme_minimal() + 
+  theme(plot.title = element_text(size = 14), axis.title.y = element_text(size = 14))
+```
+
+## Compare the results
+
+Comparing the 5 workflow strategy in the transmission to healthcare workers and to donors.
+
+# Modeling the Risk of Transmission to Healthcare Workers
+
+We can compare the proportion of healthcare workers who contract the virus over time. And how the final number of infected healthcare workers varies with interaction risk.
+
+```{r, combine hcw risk, include = TRUE, echo = TRUE, warning = FALSE}
+hcw_risk_mean_combined <- data.frame(case1 = hcw_risk_mean_case1,
+                                       case2 = hcw_risk_mean_case2,
+                                       case3 = hcw_risk_mean_case3,
+                                       case4 = hcw_risk_mean_case4,
+                                       case5 = hcw_risk_mean_case5,
+                                       time = 1:n_days)
+
+hcw_risk_mean_combined_melted <- melt(hcw_risk_mean_combined, id = 'time') 
+
+ggplot(data = hcw_risk_mean_combined_melted, aes(y = value, x = time, color = variable)) +
+  labs(x = "Days", y = "", title = "Proportion of Healthcare Workers Contracting Virus",
+       subtitle = paste("Average across",n_sim,"simulations")) + ylim(0,1) +
+  geom_line(size = 1) + theme_minimal() + 
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+
+# Varying interaction risk
+interaction_risk_combined <- data.frame(case1 = interaction_risk_results_case1,
+                                        case2 = interaction_risk_results_case2,
+                                        case3 = interaction_risk_results_case3,
+                                        case4 = interaction_risk_results_case4,
+                                        case5 = interaction_risk_results_case5,
+                                        interaction = interaction_risk_vec)
+
+interaction_risk_combined_melted <- melt(interaction_risk_combined, id = 'interaction') 
+
+ggplot(data = interaction_risk_combined_melted, aes(y = value, x = interaction, color = variable)) +
+  labs(x = "Interaction Risk", y = "", title ="Proportion of Healthcare Workers Infected by Final Day",
+       subtitle = paste("Averaged across",n_sim,"simulations")) + ylim(0,1) +
+  geom_line(size = 1) + geom_point() + theme_minimal() + 
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+
+```
+
+# Modeling the risk of transmission to donors
+
+We can compare the average number of donors acquiring virus from the donation center over time. And then look at the total number of donation center acquired cases at the end of the timecourse, under different interaction risks.
+
+```{r, combine donor risk, include = TRUE, echo = TRUE, warning = FALSE}
+donor_risk_mean_combined <- data.frame(case1 = donor_risk_mean_case1,
+                                       case2 = donor_risk_mean_case2,
+                                       case3 = donor_risk_mean_case3,
+                                       case4 = donor_risk_mean_case4,
+                                       case5 = donor_risk_mean_case5,
+                                       time = 1:n_days)
+
+donor_risk_mean_combined_melted <- melt(donor_risk_mean_combined, id = 'time') 
+
+ggplot(data = donor_risk_mean_combined_melted, aes(y = value, x = time, color = variable)) +
+  labs(x = "Days", y = "", title = "Number of Donors Contracting Virus from Donation Site",
+       subtitle = paste("Average across",n_sim,"simulations")) +
+  geom_line(size = 1) + theme_minimal() + 
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+
+# Varying interaction risk
+interaction_risk_donor_combined <- data.frame(case1 = interaction_risk_results_donor_case1,
+                                              case2 = interaction_risk_results_donor_case2,
+                                              case3 = interaction_risk_results_donor_case3,
+                                              case4 = interaction_risk_results_donor_case4,
+                                              case5 = interaction_risk_results_donor_case5,
+                                              interaction = interaction_risk_vec)
+
+interaction_risk_donor_combined_melted <- melt(interaction_risk_donor_combined, id = 'interaction')
+
+ggplot(data = interaction_risk_donor_combined_melted, aes(y = value, x = interaction, color = variable)) +
+  labs(x = "Interaction Risk", y = "", title ="Number of New Cases Acquired from Donation Site at Final Day",
+       subtitle = paste("Averaged across",n_sim,"simulations")) + 
+  geom_line(size = 1) + geom_point() + theme_minimal() +
+  theme(plot.title = element_text(size = 16), axis.title.y = element_text(size = 16))
+
+```
+
 
